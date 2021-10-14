@@ -8,69 +8,57 @@
 import Foundation
 import Cocoa
 
+struct LagrangeState {
+    var n: CGFloat
+    var from: CGFloat
+    var to: CGFloat
+    var needDraw: Bool
+    var isChebishev: Bool
+}
+
+struct SplineState {
+    var n: CGFloat
+    var from: CGFloat
+    var to: CGFloat
+    var needDraw: Bool
+}
+
 class GraphicView: NSView {
     private var scale: CGFloat = 10.0
     private var offset: CGPoint = .zero
     private var moveMode: Bool = true
-    private var functionValues: [CGPoint] = []
-    private var functionDifValues: [CGPoint] = []
+        
+    var function: String = "" {
+        didSet {
+            needsDisplay = true
+            displayIfNeeded()
+        }
+    }
     
-    private var lineValues: [CGPoint] = []
-    private var lineValues2: [CGPoint] = []
-
-    var function: String = ""
-    var function2: String = ""
-
-    private var moveGesture = NSPanGestureRecognizer(target: self, action: #selector(onMove(gesture:)))
+    var state: LagrangeState = LagrangeState(n: 10, from: -10, to: 10, needDraw: true, isChebishev: false) {
+        didSet {
+            needsDisplay = true
+            displayIfNeeded()
+        }
+    }
+    
+    var spline: SplineState = SplineState(n: 5, from: -10, to: 10, needDraw: true) {
+        didSet {
+            
+        }
+    }
+    
+    private var quality: CGFloat = 100
     
     init() {
         super.init(frame: .zero)
-        
-        moveGesture = NSPanGestureRecognizer(target: self, action: #selector(onMove(gesture:)))
-        addGestureRecognizer(moveGesture)
     }
     
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
     
-    @objc func onMove(gesture: NSPanGestureRecognizer) {
-        if moveMode {
-            let point = CGPoint(x: (gesture.location(in: self).x - bounds.width / 2) / scale, y: (gesture.location(in: self).y - bounds.height / 2) / scale)
-            
-            let valX = (2*point.x + sqrt((2*point.x)*(2*point.x)-4*point.y)) / 2
-            let valY = Function.calculate(function: function, value: valX)
-            let dif = Function.convertNormal(function: Function.differetial(function: function))
-            let realK = Function.calculate(function: dif, value: valX)
-            let val = (bounds.width / 2) / scale + 1
 
-            var valuesLine: [CGPoint] = []
-            //valuesLine.append(CGPoint(x: -val + valX, y: -val * realK + valY))
-            //valuesLine.append(CGPoint(x: val + valX, y: val * realK + valY))
-
-            
-            for i in Int(-val*scale)..<Int(val * scale) {
-                valuesLine.append(CGPoint(x: (CGFloat(i) / scale) + valX, y: (CGFloat(i) / scale) * realK + valY))
-            }
-            
-            updateLineValues(values: valuesLine)
-            
-            
-            let valX2 = (2*point.x - sqrt((2*point.x)*(2*point.x)-4*point.y)) / 2
-            let valY2 = Function.calculate(function: function, value: valX2)
-            let realK2 = Function.calculate(function: dif, value: valX2)
-            var valuesLine2: [CGPoint] = []
-            
-            for i in Int(-val*scale)..<Int(val * scale) {
-                valuesLine2.append(CGPoint(x: (CGFloat(i) / scale) + valX2, y: (CGFloat(i) / scale) * realK2 + valY2))
-            }
-            
-            updateLineValues2(values: valuesLine2)
-
-
-        }
-    }
-    
     override func draw(_ dirtyRect: NSRect) {
         let context = NSGraphicsContext.current!.cgContext
         
@@ -84,35 +72,11 @@ class GraphicView: NSView {
         
         drawGrids(ctx: context)
         drawGrid(ctx: context)
-        //redrawFunctionDif(ctx: context)
-        redrawFunctionLine(ctx: context)
-        redrawFunctionLine2(ctx: context)
-        redrawFunction(ctx: context)
-    }
-    
-    func updateValues(values: [CGPoint]) {
-        functionValues = values
-        needsDisplay = true
-        displayIfNeeded()
-    }
-    
-    
-    func updateDifValues(values: [CGPoint]) {
-        functionDifValues = values
-        needsDisplay = true
-        displayIfNeeded()
-    }
-    
-    func updateLineValues(values: [CGPoint]) {
-        lineValues = values
-        needsDisplay = true
-        displayIfNeeded()
-    }
-    
-    func updateLineValues2(values: [CGPoint]) {
-        lineValues2 = values
-        needsDisplay = true
-        displayIfNeeded()
+        
+        drawFunction(fn: function, withColor: CGColor(red: 1, green: 0, blue: 0, alpha: 1), ctx: context)
+        //drawLagrange(ctx: context)
+        drawLagrange2(ctx: context)
+        //drawSpline(from: CGPoint(x: 0, y: 0), to: CGPoint(x: 1, y: 1), ctx: context)
     }
     
     func updateScale(to: CGFloat) {
@@ -121,110 +85,180 @@ class GraphicView: NSView {
         displayIfNeeded()
     }
     
+    private func drawLagrange(ctx: CGContext) {
+        let center = CGPoint(x: bounds.width / 2, y: bounds.height / 2)
+
+        ctx.setStrokeColor(CGColor(red: 0, green: 1, blue: 0, alpha: 1))
+        ctx.setLineWidth(2)
+        ctx.setFillColor(CGColor(red: 0, green: 1, blue: 0, alpha: 1))
+        
+        var localVals: [CGPoint] = []
+        
+        if(state.isChebishev) {
+            for i in 1..<Int(state.n + 1) {
+                let localX = state.from + ((-cos((2 * CGFloat(i) - 1) / (2 * state.n) * 3.1459) + 1) / 2) * (state.to - state.from)
+                                
+                localVals.append(CGPoint(x: localX, y: Function.calculate(function: function, value: localX)))
+                
+                ctx.addEllipse(in: CGRect(origin: CGPoint(x: localVals.last!.x * scale - 4 + center.x + offset.x, y: localVals.last!.y * scale - 4 + center.y + offset.y) , size: CGSize(width: 8, height: 8)))
+
+            }
+        } else {
+            for i in 0..<Int(state.n) {
+                localVals.append(CGPoint(x: state.from + (state.to - state.from) / (state.n - 1) * CGFloat(i), y: Function.calculate(function: function, value: state.from + (state.to - state.from) / (state.n - 1) * CGFloat(i))))
+                ctx.addEllipse(in: CGRect(origin: CGPoint(x: localVals.last!.x * scale - 4 + center.x + offset.x, y: localVals.last!.y * scale - 4 + center.y + offset.y) , size: CGSize(width: 8, height: 8)))
+            }
+        }
+        
+        ctx.fillPath()
+        
+        var i = state.from*quality
+        let step = (bounds.width / 2) / quality
+        
+//        while(i < bounds.width / 2) {
+//
+//        }
+        
+        for i in Int(state.from*quality)...Int(state.to * quality) {
+            var result = 0.0
+
+            for j in 0..<Int(state.n) {
+                var localRes = 1.0
+                
+                for v in 0..<Int(state.n) where v != j {
+                    localRes *= ((CGFloat(i) / quality)-localVals[v].x)/(localVals[j].x - localVals[v].x)
+                }
+                
+                localRes *= localVals[j].y
+                
+                result += localRes
+            }
+            
+            if(i == Int(state.from * quality)) {
+                ctx.move(to: CGPoint(x: CGFloat(i) / quality * scale + center.x + offset.x, y: result * scale + center.y + offset.y))
+            } else {
+                ctx.addLine(to: CGPoint(x: CGFloat(i) / quality * scale + center.x + offset.x, y: result * scale + center.y + offset.y))
+            }
+        }
+
+        ctx.strokePath()
+    }
+    
+    private func drawLagrange2(ctx: CGContext) {
+        let center = CGPoint(x: bounds.width / 2, y: bounds.height / 2)
+
+        ctx.setStrokeColor(CGColor(red: 0, green: 1, blue: 0, alpha: 1))
+        ctx.setLineWidth(2)
+        ctx.setFillColor(CGColor(red: 0, green: 1, blue: 0, alpha: 1))
+        
+        var localVals: [CGPoint] = []
+        
+        if(state.isChebishev) {
+            for i in 1..<Int(state.n + 1) {
+                let localX = state.from + ((-cos((2 * CGFloat(i) - 1) / (2 * state.n) * 3.1459) + 1) / 2) * (state.to - state.from)
+                                
+                localVals.append(CGPoint(x: localX, y: Function.calculate(function: function, value: localX)))
+                
+                ctx.addEllipse(in: CGRect(origin: CGPoint(x: localVals.last!.x * scale - 4 + center.x + offset.x, y: localVals.last!.y * scale - 4 + center.y + offset.y) , size: CGSize(width: 8, height: 8)))
+
+            }
+        } else {
+            for i in 0..<Int(state.n) {
+                localVals.append(CGPoint(x: state.from + (state.to - state.from) / (state.n - 1) * CGFloat(i), y: Function.calculate(function: function, value: state.from + (state.to - state.from) / (state.n - 1) * CGFloat(i))))
+                ctx.addEllipse(in: CGRect(origin: CGPoint(x: localVals.last!.x * scale - 4 + center.x + offset.x, y: localVals.last!.y * scale - 4 + center.y + offset.y) , size: CGSize(width: 8, height: 8)))
+            }
+        }
+        
+        ctx.fillPath()
+        
+        var i = state.from*scale
+        let step = (bounds.width / 2) / quality
+        
+        ctx.move(to: CGPoint(x: 0, y: 0))
+
+        
+        while(i < state.to*scale) {
+            
+            var result = 0.0
+
+            for j in 0..<Int(state.n) {
+                var localRes = 1.0
+                
+                for v in 0..<Int(state.n) where v != j {
+                    localRes *= ((i / scale)-localVals[v].x)/(localVals[j].x - localVals[v].x)
+                }
+                
+                localRes *= localVals[j].y
+                
+                result += localRes
+            }
+            
+            if(i == state.from * scale) {
+                //ctx.move(to: CGPoint(x: 0, y: 0))
+                ctx.move(to: CGPoint(x: i + center.x + offset.x, y: result * scale + center.y + offset.y))
+            } else {
+                //ctx.addLine(to: CGPoint(x: i, y: 0))
+
+                ctx.addLine(to: CGPoint(x: i + center.x + offset.x, y: result * scale + center.y + offset.y))
+            }
+            
+            i += step
+            //if( i > state.to * scale) {
+             //   i = state.to * scale - 1
+                
+            //}
+        }
+        
+        var result = 0.0
+
+        for j in 0..<Int(state.n) {
+            var localRes = 1.0
+            
+            for v in 0..<Int(state.n) where v != j {
+                localRes *= ((state.to )-localVals[v].x)/(localVals[j].x - localVals[v].x)
+            }
+            
+            localRes *= localVals[j].y
+            
+            result += localRes
+        }
+
+        ctx.addLine(to: CGPoint(x: state.to * scale + center.x + offset.x, y: result * scale + center.y + offset.y))
+        
+     
+        ctx.strokePath()
+    }
+    
     private func isNormalValue(point: CGPoint) -> Bool {
         return !(point.x.isInfinite || point.x == -.infinity || point.x.isNaN || point.y.isInfinite || point.y == -.infinity || point.y.isNaN)
     }
     
-    func redrawFunction(ctx: CGContext) {
+    func drawFunction(fn: String, withColor: CGColor, ctx: CGContext) {
         let center = CGPoint(x: bounds.width / 2, y: bounds.height / 2)
 
-        ctx.setStrokeColor(CGColor.init(red: 0.5, green: 0, blue: 0, alpha: 1))
+        ctx.setStrokeColor(withColor)
         ctx.setLineWidth(2)
         
-        if isNormalValue(point: functionValues.first ?? .zero) {
-            ctx.move(to: CGPoint(x: (functionValues.first ?? .zero).x * scale + center.x + offset.x, y: (functionValues.first ?? .zero).y * scale + center.y + offset.y))
-        }
-                
-        if functionValues.count > 0 {
-            for i in 0..<functionValues.count - 1 {
+        let val = (bounds.width / 2) / quality + 1
 
-                if isNormalValue(point: functionValues[i]) {
-                    ctx.addLine(to: CGPoint(x: functionValues[i].x * scale + center.x + offset.x, y: functionValues[i].y * scale + center.y + offset.y))
-                } else {
-                    if isNormalValue(point: functionValues[i+1]) {
-                        ctx.move(to: CGPoint(x: functionValues[i+1].x * scale + center.x + offset.x, y: functionValues[i+1].y * scale + center.y + offset.y))
-                    }
-                }
-            }
-        }
-        ctx.strokePath()
-    }
-    
-    func redrawFunctionDif(ctx: CGContext) {
-        let center = CGPoint(x: bounds.width / 2, y: bounds.height / 2)
-
-        ctx.setStrokeColor(CGColor.init(red: 0, green: 0.5, blue: 0, alpha: 1))
-        ctx.setLineWidth(2)
         
-        if isNormalValue(point: functionDifValues.first ?? .zero) {
-            ctx.move(to: CGPoint(x: (functionDifValues.first ?? .zero).x * scale + center.x + offset.x, y: (functionDifValues.first ?? .zero).y * scale + center.y + offset.y))
-        }
-                
-        if functionDifValues.count > 0 {
-            for i in 0..<functionDifValues.count - 1 {
+        ctx.move(to: CGPoint(x: -val * quality * scale + center.x + offset.x, y: Function.calculate(function: fn, value: -val * quality) * scale + center.y + offset.y))
 
-                if isNormalValue(point: functionDifValues[i]) {
-                    ctx.addLine(to: CGPoint(x: functionDifValues[i].x * scale + center.x + offset.x, y: functionDifValues[i].y * scale + center.y + offset.y))
-                } else {
-                    if isNormalValue(point: functionDifValues[i+1]) {
-                        ctx.move(to: CGPoint(x: functionDifValues[i+1].x * scale + center.x + offset.x, y: functionDifValues[i+1].y * scale + center.y + offset.y))
-                    }
-                }
-            }
-        }
-        ctx.strokePath()
-    }
-    
-    func redrawFunctionLine(ctx: CGContext) {
-        let center = CGPoint(x: bounds.width / 2, y: bounds.height / 2)
-
-        ctx.setStrokeColor(CGColor.init(red: 0, green: 0.5, blue: 0.0, alpha: 1))
-        ctx.setLineWidth(2)
+        var i = -(bounds.width / 2)
         
-        if isNormalValue(point: lineValues.first ?? .zero) {
-            ctx.move(to: CGPoint(x: (lineValues.first ?? .zero).x * scale + center.x + offset.x, y: (lineValues.first ?? .zero).y * scale + center.y + offset.y))
-        }
-                
-        if lineValues.count > 0 {
-            for i in 0..<lineValues.count - 1 {
-
-                if isNormalValue(point: lineValues[i]) {
-                    ctx.addLine(to: CGPoint(x: lineValues[i].x * scale + center.x + offset.x, y: lineValues[i].y * scale + center.y + offset.y))
-                } else {
-                    if isNormalValue(point: lineValues[i+1]) {
-                        ctx.move(to: CGPoint(x: lineValues[i+1].x * scale + center.x + offset.x, y: lineValues[i+1].y * scale + center.y + offset.y))
-                    }
-                }
-            }
-        }
-        ctx.strokePath()
-    }
-    
-    func redrawFunctionLine2(ctx: CGContext) {
-        let center = CGPoint(x: bounds.width / 2, y: bounds.height / 2)
-
-        ctx.setStrokeColor(CGColor.init(red: 0, green: 0.5, blue: 0.0, alpha: 1))
-        ctx.setLineWidth(2)
+        let step = (bounds.width / 2) / quality
         
-        if isNormalValue(point: lineValues2.first ?? .zero) {
-            ctx.move(to: CGPoint(x: (lineValues2.first ?? .zero).x * scale + center.x + offset.x, y: (lineValues2.first ?? .zero).y * scale + center.y + offset.y))
+        //print(step)
+        
+        while(i <= (bounds.width / 2)) {
+            //print(scale)
+            ctx.addLine(to: CGPoint(x: i + center.x + offset.x, y: Function.calculate(function: fn, value: i / scale) * scale + center.y + offset.y))
+            i += step
         }
-                
-        if lineValues2.count > 0 {
-            for i in 0..<lineValues2.count - 1 {
-
-                if isNormalValue(point: lineValues2[i]) {
-                    ctx.addLine(to: CGPoint(x: lineValues2[i].x * scale + center.x + offset.x, y: lineValues2[i].y * scale + center.y + offset.y))
-                } else {
-                    if isNormalValue(point: lineValues2[i+1]) {
-                        ctx.move(to: CGPoint(x: lineValues2[i+1].x * scale + center.x + offset.x, y: lineValues[i+1].y * scale + center.y + offset.y))
-                    }
-                }
-            }
-        }
+        
         ctx.strokePath()
     }
-    
+
     private func drawGrid(ctx: CGContext) {
         let center = CGPoint(x: bounds.width / 2, y: bounds.height / 2)
         

@@ -17,6 +17,14 @@ class ViewController: NSViewController {
     
     @IBOutlet weak var zoomInButton: NSButton!
     @IBOutlet weak var zoomOutButton: NSButton!
+    
+    @IBOutlet weak var lagrangeButton: NSButton!
+    @IBOutlet weak var lagrangeN: NSTextField!
+    @IBOutlet weak var lagrangeFrom: NSTextField!
+    @IBOutlet weak var lagrangeTo: NSTextField!
+
+    @IBOutlet weak var Chebishev: NSButton!
+
 
     private var quality: CGFloat = 10.0
 
@@ -24,6 +32,8 @@ class ViewController: NSViewController {
     
     override func viewDidLoad() {
         super.viewDidLoad()
+        
+       
 
         graphic = GraphicView()
         graphic.translatesAutoresizingMaskIntoConstraints = false
@@ -43,53 +53,44 @@ class ViewController: NSViewController {
         
         zoomOutButton.target = self
         zoomOutButton.action = #selector(zoomOut)
+        
+        lagrangeButton.target = self
+        lagrangeButton.action = #selector(onLagrange)
+        
+        Chebishev.target = self
+        Chebishev.action = #selector(onChebish)
 
         // Do any additional setup after loading the view.
     }
+    
+    @objc func onLagrange() {
+        let n = lagrangeN.stringValue.count == 0 ? 2.0 : CGFloat(Int(lagrangeN.stringValue)!)
+        let from = lagrangeFrom.stringValue.count == 0 ? 1.0 : CGFloat(Int(lagrangeFrom.stringValue)!)
+        let to = lagrangeTo.stringValue.count == 0 ? 1.0 : CGFloat(Int(lagrangeTo.stringValue)!)
+        
+        graphic.state = LagrangeState(n: n, from: from, to: to, needDraw: true, isChebishev: false)
+    }
+    
+    
+    @objc func onChebish() {
+        let n = lagrangeN.stringValue.count == 0 ? 2.0 : CGFloat(Int(lagrangeN.stringValue)!)
+        let from = lagrangeFrom.stringValue.count == 0 ? 1.0 : CGFloat(Int(lagrangeFrom.stringValue)!)
+        let to = lagrangeTo.stringValue.count == 0 ? 1.0 : CGFloat(Int(lagrangeTo.stringValue)!)
+        
+        graphic.state = LagrangeState(n: n, from: from, to: to, needDraw: true, isChebishev: true)
+    }
+    
+    @objc func onSplain() {
+        
+    }
 
     @objc func onDraw() {
-        var values: [CGPoint] = []
-        
         graphic.function = fieldY.stringValue.lowercased()
-        graphic.function2 = fieldX.stringValue.lowercased()
-
-        let val = (graphic.bounds.width / 2) / quality + 1
-        for i in Int(-val*quality)..<Int(val * quality) {
-            values.append(CGPoint(x: Function.calculate(function: fieldX.stringValue.lowercased(), value: CGFloat(i) / quality), y: Function.calculate(function: fieldY.stringValue.lowercased(), value: CGFloat(i) / quality)))
-        }
-
-        print("hey?")
-        graphic.updateValues(values: values)
+    }
+    
+    
+    @objc func drawLagrange() {
         
-        
-        let dif = Function.convertNormal(function: Function.differetial(function: fieldY.stringValue.lowercased()))
-        let dif2 = Function.convertNormal(function: Function.differetial(function: fieldX.stringValue.lowercased()))
-        
-        print(dif)
-        
-        let point = CGPoint(x: -1, y: -1)
-                
-        let valX = (2*point.x + sqrt((2*point.x)*(2*point.x)-4*point.y)) / 2
-        let valY = Function.calculate(function: fieldY.stringValue.lowercased(), value: valX)
-        
-        let realK = Function.calculate(function: dif, value: valX)
-        
-        var valuesDif: [CGPoint] = []
-        for i in Int(-val*quality)..<Int(val * quality) {
-            valuesDif.append(CGPoint(x: CGFloat(i) / quality, y: Function.calculate(function: dif, value: CGFloat(i) / quality)))
-        }
-        //print(valuesDif)
-        
-        graphic.updateDifValues(values: valuesDif)
-        
-        var valuesLine: [CGPoint] = []
-        for i in Int(-val*quality)..<Int(val * quality) {
-            valuesLine.append(CGPoint(x: (CGFloat(i) / quality) + valX, y: (CGFloat(i) / quality) * realK + valY))
-        }
-        
-        graphic.updateLineValues(values: valuesLine)
-
-
     }
     
     @objc func zoomIn() {
